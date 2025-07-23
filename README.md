@@ -9,6 +9,10 @@ A Neovim plugin for running Ansible playbooks directly from your editor with fuz
 - 🏷️ Tag selection for playbooks that contain tags
 - 🎯 Host/group limiting with `--limit` parameter
 - 🖥️ Execution in floaterm for better terminal management
+- 🔧 Configurable default options (e.g., `--diff`)
+- 📊 Configurable verbosity levels (1-5 for -v to -vvvvv)
+- 🔑 Extra variables support with `-e key=value`
+- 🧪 Dry-run option with `--check`
 - ⌨️ Configurable keybindings (default: `<leader>ap`)
 
 ## Dependencies
@@ -60,7 +64,9 @@ use {
 3. Select an inventory/environment
 4. If the playbook has tags, select a tag (or "all" to skip tag filtering)
 5. Optionally specify hosts/groups to limit execution to
-6. The playbook will run in a new floaterm window
+6. Optionally specify extra variables as `key=value,key2=value2`
+7. Choose whether to run in dry-run mode (`--check`)
+8. The playbook will run in a new floaterm window
 
 ## Configuration
 
@@ -68,6 +74,8 @@ use {
 require("ansible").setup({
   playbooks_dir = "playbooks",        -- Default: "playbooks"
   environments_dir = "environments",   -- Default: "environments"
+  default_options = "--diff",          -- Default: "" (additional options)
+  verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
   float_opts = {                      -- Telescope floating window options
     relative = "editor",
     width = 80,

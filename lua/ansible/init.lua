@@ -3,7 +3,9 @@ local M = {}
 -- Configuration
 local config = {
   playbooks_dir = "playbooks",
-  environments_dir = "environments", 
+  environments_dir = "environments",
+  default_options = "", -- Additional options like --diff
+  verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
   float_opts = {
     relative = "editor",
     width = 80,
@@ -96,10 +98,18 @@ local function create_picker(items, prompt, callback)
   }):find()
 end
 
--- Input prompt function
-local function get_input(prompt, callback)
-  vim.ui.input({ prompt = prompt }, function(input)
-    if input then
+-- Input prompt function with centered positioning
+local function get_input(prompt, callback, default)
+  local width = 60
+  local height = 1
+  local col = math.floor((vim.o.columns - width) / 2)
+  local row = math.floor((vim.o.lines - height) / 2)
+  
+  vim.ui.input({ 
+    prompt = prompt,
+    default = default or ""
+  }, function(input)
+    if input ~= nil then -- Allow empty strings but not nil (cancelled)
       callback(input)
     end
   end)
@@ -148,21 +158,53 @@ local function run_ansible()
       local function continue_with_limits(selected_tag)
         -- Step 4: Get limit input
         get_input("Limit to hosts/groups (comma-separated, leave empty for all): ", function(limit)
-          -- Build ansible command
-          local cmd = "ansible-playbook"
-          cmd = cmd .. " -i " .. inventory_path
-          cmd = cmd .. " " .. playbook_path
-          
-          if selected_tag and selected_tag ~= "" then
-            cmd = cmd .. " --tags " .. selected_tag
-          end
-          
-          if limit and limit ~= "" then
-            cmd = cmd .. " --limit " .. limit
-          end
-          
-          -- Run the command
-          run_ansible_command(cmd)
+          -- Step 5: Get extra variables
+          get_input("Extra variables (key=value,key2=value2, leave empty for none): ", function(extra_vars)
+            -- Step 6: Get dry-run option
+            get_input("Dry run? (y/N): ", function(dry_run)
+              -- Build ansible command
+              local cmd = "ansible-playbook"
+              cmd = cmd .. " -i " .. inventory_path
+              
+              -- Add verbosity
+              if config.verbosity > 0 and config.verbosity <= 5 then
+                cmd = cmd .. " -" .. string.rep("v", config.verbosity)
+              end
+              
+              -- Add default options
+              if config.default_options and config.default_options ~= "" then
+                cmd = cmd .. " " .. config.default_options
+              end
+              
+              cmd = cmd .. " " .. playbook_path
+              
+              if selected_tag and selected_tag ~= "" then
+                cmd = cmd .. " --tags " .. selected_tag
+              end
+              
+              if limit and limit ~= "" then
+                cmd = cmd .. " --limit " .. limit
+              end
+              
+              -- Add extra variables
+              if extra_vars and extra_vars ~= "" then
+                for var in extra_vars:gmatch("([^,]+)") do
+                  local trimmed = var:match("^%s*(.-)%s*$") -- trim whitespace
+                  if trimmed ~= "" then
+                    cmd = cmd .. " -e " .. trimmed
+                  end
+                end
+              end
+              
+              -- Add dry-run option
+              if dry_run and (dry_run:lower() == "y" or dry_run:lower() == "yes") then
+                cmd = cmd .. " --check"
+              end
+              
+              -- Run the command
+              run_ansible_command(cmd)
+            end)
+          end)
         end)
       end
       
