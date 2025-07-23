@@ -17,6 +17,9 @@ local config = {
   }
 }
 
+-- Store the last executed command
+local last_command = nil
+
 -- Helper function to check if directory exists
 local function dir_exists(path)
   local stat = vim.loop.fs_stat(path)
@@ -196,7 +199,21 @@ local function run_ansible_command(command)
     return
   end
   
+  -- Store the command for potential re-run
+  last_command = command
+  
   vim.cmd("FloatermNew --title=ansible " .. command)
+end
+
+-- Function to run the last executed command
+local function run_ansible_last()
+  if not last_command then
+    vim.notify("No previous Ansible command found. Run a playbook first.", vim.log.levels.WARN)
+    return
+  end
+  
+  vim.notify("Re-running last command: " .. last_command, vim.log.levels.INFO)
+  vim.cmd("FloatermNew --title=ansible " .. last_command)
 end
 
 -- Function to handle tag selection and continue workflow  
@@ -338,6 +355,7 @@ function M.setup(opts)
   -- Create user commands
   vim.api.nvim_create_user_command("AnsibleRun", function() run_ansible(false) end, {})
   vim.api.nvim_create_user_command("AnsibleRunCurrent", function() run_ansible(true) end, {})
+  vim.api.nvim_create_user_command("AnsibleRunLast", run_ansible_last, {})
   
   -- Set up keybindings
   vim.keymap.set("n", "<leader>ap", function() run_ansible(false) end, { 
@@ -349,10 +367,16 @@ function M.setup(opts)
     desc = "Run Ansible with Current Buffer",
     silent = true 
   })
+  
+  vim.keymap.set("n", "<leader>ar", run_ansible_last, { 
+    desc = "Re-run Last Ansible Command",
+    silent = true 
+  })
 end
 
 -- Export the run functions for direct use
 M.run = function() run_ansible(false) end
 M.run_current = function() run_ansible(true) end
+M.run_last = run_ansible_last
 
 return M

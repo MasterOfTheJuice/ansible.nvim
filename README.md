@@ -13,9 +13,13 @@ A Neovim plugin for running Ansible playbooks directly from your editor with fuz
 - 📊 Configurable verbosity levels (1-5 for -v to -vvvvv)
 - 🔑 Extra variables support with `-e key=value`
 - 🧪 Dry-run option with `--check`
+- 📍 Centered input prompts for better UX
 - 🎯 Smart current buffer detection (`:AnsibleRunCurrent` / `<leader>ac`)
 - 📂 Auto-selects playbook or inventory based on current file
-- ⌨️ Configurable keybindings (default: `<leader>ap` and `<leader>ac`)
+- 🔄 Falls back to full workflow if current file isn't recognized
+- 🔄 Re-run last command (`:AnsibleRunLast` / `<leader>ar`)
+- 💾 Automatic command history tracking
+- ⌨️ Configurable keybindings (default: `<leader>ap`, `<leader>ac`, and `<leader>ar`)
 
 ## Dependencies
 
@@ -77,7 +81,12 @@ use {
 3. If current file is a **playbook**: automatically selects it, prompts for inventory
 4. If current file is an **inventory**: automatically selects it, prompts for playbook  
 5. If current file is **neither**: runs the full standard workflow
-6. Continue with remaining prompts (tags, limits, variables, dry-run)
+### Re-run Last Command
+1. After running any ansible command via the plugin
+2. Press `<leader>ar` or run `:AnsibleRunLast` 
+3. The exact same command will re-execute immediately
+4. No prompts, no selections - instant execution
+5. Shows notification with the command being re-run
 
 ## Configuration
 
@@ -120,18 +129,21 @@ your-project/
 
 - `:AnsibleRun` - Start the ansible playbook selection workflow
 - `:AnsibleRunCurrent` - Smart workflow using current buffer context
+- `:AnsibleRunLast` - Re-run the last executed ansible command
 
 ## Keybindings
 
 - `<leader>ap` - Run ansible playbook (standard workflow)
 - `<leader>ac` - Run ansible with current buffer context
+- `<leader>ar` - Re-run last ansible command
 
 You can customize the keybindings:
 
 ```lua
 -- In your init.lua after setup
-vim.keymap.set("n", "<leader>ar", require("ansible").run, { desc = "Run Ansible" })
-vim.keymap.set("n", "<leader>arc", require("ansible").run_current, { desc = "Run Ansible Current" })
+vim.keymap.set("n", "<leader>aa", require("ansible").run, { desc = "Run Ansible" })
+vim.keymap.set("n", "<leader>aac", require("ansible").run_current, { desc = "Run Ansible Current" })
+vim.keymap.set("n", "<leader>aal", require("ansible").run_last, { desc = "Run Ansible Last" })
 ```
 
 ## License
