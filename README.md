@@ -1,4 +1,4 @@
-# nvim-ansible
+# ansible.nvim
 
 A Neovim plugin for running Ansible playbooks directly from your editor with fuzzy finding and floaterm integration.
 
@@ -23,13 +23,13 @@ Required plugins:
 
 ```lua
 {
-  "your-username/nvim-ansible",
+  "your-username/ansible.nvim",
   dependencies = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
   },
   config = function()
-    require("nvim-ansible").setup({
+    require("ansible").setup({
       -- Optional configuration
       playbooks_dir = "playbooks",      -- Directory containing playbooks
       environments_dir = "environments", -- Directory containing inventories
@@ -42,13 +42,13 @@ Required plugins:
 
 ```lua
 use {
-  "your-username/nvim-ansible",
+  "your-username/ansible.nvim",
   requires = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
   },
   config = function()
-    require("nvim-ansible").setup()
+    require("ansible").setup()
   end
 }
 ```
@@ -65,7 +65,7 @@ use {
 ## Configuration
 
 ```lua
-require("nvim-ansible").setup({
+require("ansible").setup({
   playbooks_dir = "playbooks",        -- Default: "playbooks"
   environments_dir = "environments",   -- Default: "environments"
   float_opts = {                      -- Telescope floating window options
@@ -109,7 +109,7 @@ You can customize the keybinding:
 
 ```lua
 -- In your init.lua after setup
-vim.keymap.set("n", "<leader>ar", require("nvim-ansible").run, { desc = "Run Ansible" })
+vim.keymap.set("n", "<leader>ar", require("ansible").run, { desc = "Run Ansible" })
 ```
 
 ## License

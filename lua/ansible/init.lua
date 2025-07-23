@@ -1,0 +1,200 @@
+local M = {}
+
+-- Configuration
+local config = {
+  playbooks_dir = "playbooks",
+  environments_dir = "environments", 
+  float_opts = {
+    relative = "editor",
+    width = 80,
+    height = 20,
+    col = math.floor((vim.o.columns - 80) / 2),
+    row = math.floor((vim.o.lines - 20) / 2),
+    style = "minimal",
+    border = "rounded"
+  }
+}
+
+-- Helper function to check if directory exists
+local function dir_exists(path)
+  local stat = vim.loop.fs_stat(path)
+  return stat and stat.type == "directory"
+end
+
+-- Helper function to get files from directory
+local function get_files(dir, extension)
+  local files = {}
+  if not dir_exists(dir) then
+    return files
+  end
+  
+  local handle = vim.loop.fs_scandir(dir)
+  if handle then
+    while true do
+      local name, type = vim.loop.fs_scandir_next(handle)
+      if not name then break end
+      
+      if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
+        table.insert(files, name)
+      end
+    end
+  end
+  return files
+end
+
+-- Helper function to extract tags from playbook
+local function get_playbook_tags(playbook_path)
+  local tags = {}
+  local file = io.open(playbook_path, "r")
+  if not file then return tags end
+  
+  local content = file:read("*all")
+  file:close()
+  
+  -- Simple regex to find tags in YAML
+  for tag in content:gmatch("tags:%s*([%w_-]+)") do
+    if not vim.tbl_contains(tags, tag) then
+      table.insert(tags, tag)
+    end
+  end
+  
+  for tag in content:gmatch("tags:%s*%[([^%]]+)%]") do
+    for t in tag:gmatch("([%w_-]+)") do
+      if not vim.tbl_contains(tags, t) then
+        table.insert(tags, t)
+      end
+    end
+  end
+  
+  return tags
+end
+
+-- Telescope picker for file selection
+local function create_picker(items, prompt, callback)
+  local pickers = require("telescope.pickers")
+  local finders = require("telescope.finders")
+  local conf = require("telescope.config").values
+  local actions = require("telescope.actions")
+  local action_state = require("telescope.actions.state")
+  
+  pickers.new({}, {
+    prompt_title = prompt,
+    finder = finders.new_table({
+      results = items
+    }),
+    sorter = conf.generic_sorter({}),
+    attach_mappings = function(prompt_bufnr, map)
+      actions.select_default:replace(function()
+        actions.close(prompt_bufnr)
+        local selection = action_state.get_selected_entry()
+        if selection then
+          callback(selection[1])
+        end
+      end)
+      return true
+    end,
+  }):find()
+end
+
+-- Input prompt function
+local function get_input(prompt, callback)
+  vim.ui.input({ prompt = prompt }, function(input)
+    if input then
+      callback(input)
+    end
+  end)
+end
+
+-- Function to run ansible command in floaterm
+local function run_ansible_command(command)
+  -- Check if floaterm is available
+  if vim.fn.exists(":FloatermNew") == 0 then
+    vim.notify("floaterm plugin not found. Please install it.", vim.log.levels.ERROR)
+    return
+  end
+  
+  vim.cmd("FloatermNew --title=ansible " .. command)
+end
+
+-- Main function to run the ansible workflow
+local function run_ansible()
+  -- Step 1: Get playbooks
+  local playbooks = get_files(config.playbooks_dir, "yml")
+  if vim.tbl_isempty(playbooks) then
+    playbooks = get_files(config.playbooks_dir, "yaml")
+  end
+  
+  if vim.tbl_isempty(playbooks) then
+    vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
+    return
+  end
+  
+  create_picker(playbooks, "Select Playbook", function(playbook)
+    local playbook_path = config.playbooks_dir .. "/" .. playbook
+    
+    -- Step 2: Get inventories
+    local inventories = get_files(config.environments_dir)
+    if vim.tbl_isempty(inventories) then
+      vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
+      return
+    end
+    
+    create_picker(inventories, "Select Inventory", function(inventory)
+      local inventory_path = config.environments_dir .. "/" .. inventory
+      
+      -- Step 3: Check for tags
+      local tags = get_playbook_tags(playbook_path)
+      
+      local function continue_with_limits(selected_tag)
+        -- Step 4: Get limit input
+        get_input("Limit to hosts/groups (comma-separated, leave empty for all): ", function(limit)
+          -- Build ansible command
+          local cmd = "ansible-playbook"
+          cmd = cmd .. " -i " .. inventory_path
+          cmd = cmd .. " " .. playbook_path
+          
+          if selected_tag and selected_tag ~= "" then
+            cmd = cmd .. " --tags " .. selected_tag
+          end
+          
+          if limit and limit ~= "" then
+            cmd = cmd .. " --limit " .. limit
+          end
+          
+          -- Run the command
+          run_ansible_command(cmd)
+        end)
+      end
+      
+      if not vim.tbl_isempty(tags) then
+        -- Add option to run all tasks
+        table.insert(tags, 1, "all")
+        create_picker(tags, "Select Tag (or 'all' for no tag filtering)", function(tag)
+          local selected_tag = (tag == "all") and "" or tag
+          continue_with_limits(selected_tag)
+        end)
+      else
+        continue_with_limits(nil)
+      end
+    end)
+  end)
+end
+
+-- Setup function
+function M.setup(opts)
+  config = vim.tbl_deep_extend("force", config, opts or {})
+  
+  -- Create user command
+  vim.api.nvim_create_user_command("AnsibleRun", run_ansible, {})
+  
+  -- Set up keybinding
+  vim.keymap.set("n", "<leader>ap", run_ansible, { 
+    desc = "Run Ansible Playbook",
+    silent = true 
+  })
+end
+
+-- Export the run function for direct use
+M.run = run_ansible
+
+return M
