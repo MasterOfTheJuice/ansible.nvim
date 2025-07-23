@@ -98,21 +98,74 @@ local function create_picker(items, prompt, callback)
   }):find()
 end
 
--- Input prompt function with centered positioning
+-- Custom centered input function using floating window
 local function get_input(prompt, callback, default)
-  local width = 60
-  local height = 1
+  local width = math.min(80, vim.o.columns - 4)
+  local height = 3
   local col = math.floor((vim.o.columns - width) / 2)
   local row = math.floor((vim.o.lines - height) / 2)
   
-  vim.ui.input({ 
-    prompt = prompt,
-    default = default or ""
-  }, function(input)
-    if input ~= nil then -- Allow empty strings but not nil (cancelled)
-      callback(input)
+  -- Create the floating window
+  local buf = vim.api.nvim_create_buf(false, true)
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = col,
+    row = row,
+    style = "minimal",
+    border = "rounded",
+    title = " Input ",
+    title_pos = "center"
+  })
+  
+  -- Set up the buffer content
+  local prompt_line = prompt
+  local input_line = default or ""
+  
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    prompt_line,
+    input_line,
+    ""
+  })
+  
+  -- Position cursor at end of input line
+  vim.api.nvim_win_set_cursor(win, {2, #input_line})
+  
+  -- Set up keymaps
+  local function close_and_callback(result)
+    vim.api.nvim_win_close(win, true)
+    if result ~= nil then
+      callback(result)
     end
-  end)
+  end
+  
+  -- Enter to confirm
+  vim.keymap.set("i", "<CR>", function()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local input = lines[2] or ""
+    close_and_callback(input)
+  end, { buffer = buf })
+  
+  vim.keymap.set("n", "<CR>", function()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local input = lines[2] or ""
+    close_and_callback(input)
+  end, { buffer = buf })
+  
+  -- Escape to cancel
+  vim.keymap.set({"i", "n"}, "<Esc>", function()
+    close_and_callback(nil)
+  end, { buffer = buf })
+  
+  -- q to cancel in normal mode
+  vim.keymap.set("n", "q", function()
+    close_and_callback(nil)
+  end, { buffer = buf })
+  
+  -- Start in insert mode on the input line
+  vim.cmd("startinsert")
+  vim.api.nvim_win_set_cursor(win, {2, #input_line})
 end
 
 -- Function to run ansible command in floaterm
