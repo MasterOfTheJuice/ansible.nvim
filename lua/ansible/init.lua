@@ -179,23 +179,76 @@ local function run_ansible_command(command)
   vim.cmd("FloatermNew --title=ansible " .. command)
 end
 
+-- Helper function to get relative path from project root
+local function get_relative_path(filepath)
+  local cwd = vim.fn.getcwd()
+  if filepath:sub(1, #cwd) == cwd then
+    return filepath:sub(#cwd + 2) -- +2 to remove leading slash
+  end
+  return filepath
+end
+
+-- Helper function to check if file is in specific directory
+local function is_file_in_dir(filepath, dir)
+  local relative_path = get_relative_path(filepath)
+  return relative_path:match("^" .. dir .. "/")
+end
+
+-- Helper function to extract filename from path
+local function get_filename(filepath)
+  return filepath:match("([^/]+)$")
+end
+
 -- Main function to run the ansible workflow
-local function run_ansible()
-  -- Step 1: Get playbooks
-  local playbooks = get_files(config.playbooks_dir, "yml")
-  if vim.tbl_isempty(playbooks) then
-    playbooks = get_files(config.playbooks_dir, "yaml")
+local function run_ansible(use_current_buffer)
+-- Main function to run the ansible workflow
+local function run_ansible(use_current_buffer)
+  local current_file = nil
+  local selected_playbook = nil
+  local selected_inventory = nil
+  
+  -- Check current buffer if requested
+  if use_current_buffer then
+    current_file = vim.api.nvim_buf_get_name(0)
+    if current_file and current_file ~= "" then
+      if is_file_in_dir(current_file, config.playbooks_dir) then
+        selected_playbook = get_filename(current_file)
+        vim.notify("Using current playbook: " .. selected_playbook, vim.log.levels.INFO)
+      elseif is_file_in_dir(current_file, config.environments_dir) then
+        selected_inventory = get_filename(current_file)
+        vim.notify("Using current inventory: " .. selected_inventory, vim.log.levels.INFO)
+      end
+    end
   end
   
-  if vim.tbl_isempty(playbooks) then
-    vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
-    return
-  end
-  
-  create_picker(playbooks, "Select Playbook", function(playbook)
-    local playbook_path = config.playbooks_dir .. "/" .. playbook
+  -- Step 1: Get playbooks (skip if already selected from current buffer)
+  if selected_playbook then
+    proceed_with_inventory(selected_playbook, selected_inventory)
+  else
+    local playbooks = get_files(config.playbooks_dir, "yml")
+    if vim.tbl_isempty(playbooks) then
+      playbooks = get_files(config.playbooks_dir, "yaml")
+    end
     
-    -- Step 2: Get inventories
+    if vim.tbl_isempty(playbooks) then
+      vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
+      return
+    end
+    
+    create_picker(playbooks, "Select Playbook", function(playbook)
+      proceed_with_inventory(playbook, selected_inventory)
+    end)
+  end
+end
+
+-- Function to handle inventory selection and continue workflow
+local function proceed_with_inventory(playbook, preselected_inventory)
+  local playbook_path = config.playbooks_dir .. "/" .. playbook
+  
+  -- Step 2: Get inventories (skip if already selected from current buffer)
+  if preselected_inventory then
+    proceed_with_tags(playbook, playbook_path, preselected_inventory)
+  else
     local inventories = get_files(config.environments_dir)
     if vim.tbl_isempty(inventories) then
       vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
@@ -203,93 +256,105 @@ local function run_ansible()
     end
     
     create_picker(inventories, "Select Inventory", function(inventory)
-      local inventory_path = config.environments_dir .. "/" .. inventory
-      
-      -- Step 3: Check for tags
-      local tags = get_playbook_tags(playbook_path)
-      
-      local function continue_with_limits(selected_tag)
-        -- Step 4: Get limit input
-        get_input("Limit to hosts/groups (comma-separated, leave empty for all): ", function(limit)
-          -- Step 5: Get extra variables
-          get_input("Extra variables (key=value,key2=value2, leave empty for none): ", function(extra_vars)
-            -- Step 6: Get dry-run option
-            get_input("Dry run? (y/N): ", function(dry_run)
-              -- Build ansible command
-              local cmd = "ansible-playbook"
-              cmd = cmd .. " -i " .. inventory_path
-              
-              -- Add verbosity
-              if config.verbosity > 0 and config.verbosity <= 5 then
-                cmd = cmd .. " -" .. string.rep("v", config.verbosity)
-              end
-              
-              -- Add default options
-              if config.default_options and config.default_options ~= "" then
-                cmd = cmd .. " " .. config.default_options
-              end
-              
-              cmd = cmd .. " " .. playbook_path
-              
-              if selected_tag and selected_tag ~= "" then
-                cmd = cmd .. " --tags " .. selected_tag
-              end
-              
-              if limit and limit ~= "" then
-                cmd = cmd .. " --limit " .. limit
-              end
-              
-              -- Add extra variables
-              if extra_vars and extra_vars ~= "" then
-                for var in extra_vars:gmatch("([^,]+)") do
-                  local trimmed = var:match("^%s*(.-)%s*$") -- trim whitespace
-                  if trimmed ~= "" then
-                    cmd = cmd .. " -e " .. trimmed
-                  end
-                end
-              end
-              
-              -- Add dry-run option
-              if dry_run and (dry_run:lower() == "y" or dry_run:lower() == "yes") then
-                cmd = cmd .. " --check"
-              end
-              
-              -- Run the command
-              run_ansible_command(cmd)
-            end)
-          end)
-        end)
-      end
-      
-      if not vim.tbl_isempty(tags) then
-        -- Add option to run all tasks
-        table.insert(tags, 1, "all")
-        create_picker(tags, "Select Tag (or 'all' for no tag filtering)", function(tag)
-          local selected_tag = (tag == "all") and "" or tag
-          continue_with_limits(selected_tag)
-        end)
-      else
-        continue_with_limits(nil)
-      end
+      proceed_with_tags(playbook, playbook_path, inventory)
     end)
-  end)
+  end
+end
+
+-- Function to handle tag selection and continue workflow  
+local function proceed_with_tags(playbook, playbook_path, inventory)
+  local inventory_path = config.environments_dir .. "/" .. inventory
+  
+  -- Step 3: Check for tags
+  local tags = get_playbook_tags(playbook_path)
+  
+  local function continue_with_limits(selected_tag)
+    -- Step 4: Get limit input
+    get_input("Limit to hosts/groups (comma-separated, leave empty for all): ", function(limit)
+      -- Step 5: Get extra variables
+      get_input("Extra variables (key=value,key2=value2, leave empty for none): ", function(extra_vars)
+        -- Step 6: Get dry-run option
+        get_input("Dry run? (y/N): ", function(dry_run)
+          -- Build ansible command
+          local cmd = "ansible-playbook"
+          cmd = cmd .. " -i " .. inventory_path
+          
+          -- Add verbosity
+          if config.verbosity > 0 and config.verbosity <= 5 then
+            cmd = cmd .. " -" .. string.rep("v", config.verbosity)
+          end
+          
+          -- Add default options
+          if config.default_options and config.default_options ~= "" then
+            cmd = cmd .. " " .. config.default_options
+          end
+          
+          cmd = cmd .. " " .. playbook_path
+          
+          if selected_tag and selected_tag ~= "" then
+            cmd = cmd .. " --tags " .. selected_tag
+          end
+          
+          if limit and limit ~= "" then
+            cmd = cmd .. " --limit " .. limit
+          end
+          
+          -- Add extra variables
+          if extra_vars and extra_vars ~= "" then
+            for var in extra_vars:gmatch("([^,]+)") do
+              local trimmed = var:match("^%s*(.-)%s*$") -- trim whitespace
+              if trimmed ~= "" then
+                cmd = cmd .. " -e " .. trimmed
+              end
+            end
+          end
+          
+          -- Add dry-run option
+          if dry_run and (dry_run:lower() == "y" or dry_run:lower() == "yes") then
+            cmd = cmd .. " --check"
+          end
+          
+          -- Run the command
+          run_ansible_command(cmd)
+        end)
+      end)
+    end)
+  end
+  
+  if not vim.tbl_isempty(tags) then
+    -- Add option to run all tasks
+    table.insert(tags, 1, "all")
+    create_picker(tags, "Select Tag (or 'all' for no tag filtering)", function(tag)
+      local selected_tag = (tag == "all") and "" or tag
+      continue_with_limits(selected_tag)
+    end)
+  else
+    continue_with_limits(nil)
+  end
 end
 
 -- Setup function
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", config, opts or {})
   
-  -- Create user command
-  vim.api.nvim_create_user_command("AnsibleRun", run_ansible, {})
+  -- Create user commands
+  vim.api.nvim_create_user_command("AnsibleRun", function() run_ansible(false) end, {})
+  vim.api.nvim_create_user_command("AnsibleRunCurrent", function() run_ansible(true) end, {})
   
-  -- Set up keybinding
-  vim.keymap.set("n", "<leader>ap", run_ansible, { 
+  -- Set up keybindings
+  vim.keymap.set("n", "<leader>ap", function() run_ansible(false) end, { 
     desc = "Run Ansible Playbook",
+    silent = true 
+  })
+  
+  vim.keymap.set("n", "<leader>ac", function() run_ansible(true) end, { 
+    desc = "Run Ansible with Current Buffer",
     silent = true 
   })
 end
 
--- Export the run function for direct use
-M.run = run_ansible
+-- Export the run functions for direct use
+M.run = function() run_ansible(false) end
+M.run_current = function() run_ansible(true) end
 
 return M
