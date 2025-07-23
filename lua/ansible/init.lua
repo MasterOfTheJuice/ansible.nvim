@@ -71,6 +71,26 @@ local function get_playbook_tags(playbook_path)
   return tags
 end
 
+-- Helper function to get relative path from project root
+local function get_relative_path(filepath)
+  local cwd = vim.fn.getcwd()
+  if filepath:sub(1, #cwd) == cwd then
+    return filepath:sub(#cwd + 2) -- +2 to remove leading slash
+  end
+  return filepath
+end
+
+-- Helper function to check if file is in specific directory
+local function is_file_in_dir(filepath, dir)
+  local relative_path = get_relative_path(filepath)
+  return relative_path:match("^" .. dir .. "/")
+end
+
+-- Helper function to extract filename from path
+local function get_filename(filepath)
+  return filepath:match("([^/]+)$")
+end
+
 -- Telescope picker for file selection
 local function create_picker(items, prompt, callback)
   local pickers = require("telescope.pickers")
@@ -179,86 +199,6 @@ local function run_ansible_command(command)
   vim.cmd("FloatermNew --title=ansible " .. command)
 end
 
--- Helper function to get relative path from project root
-local function get_relative_path(filepath)
-  local cwd = vim.fn.getcwd()
-  if filepath:sub(1, #cwd) == cwd then
-    return filepath:sub(#cwd + 2) -- +2 to remove leading slash
-  end
-  return filepath
-end
-
--- Helper function to check if file is in specific directory
-local function is_file_in_dir(filepath, dir)
-  local relative_path = get_relative_path(filepath)
-  return relative_path:match("^" .. dir .. "/")
-end
-
--- Helper function to extract filename from path
-local function get_filename(filepath)
-  return filepath:match("([^/]+)$")
-end
-
--- Main function to run the ansible workflow
-local function run_ansible(use_current_buffer)
-  local current_file = nil
-  local selected_playbook = nil
-  local selected_inventory = nil
-  
-  -- Check current buffer if requested
-  if use_current_buffer then
-    current_file = vim.api.nvim_buf_get_name(0)
-    if current_file and current_file ~= "" then
-      if is_file_in_dir(current_file, config.playbooks_dir) then
-        selected_playbook = get_filename(current_file)
-        vim.notify("Using current playbook: " .. selected_playbook, vim.log.levels.INFO)
-      elseif is_file_in_dir(current_file, config.environments_dir) then
-        selected_inventory = get_filename(current_file)
-        vim.notify("Using current inventory: " .. selected_inventory, vim.log.levels.INFO)
-      end
-    end
-  end
-  
-  -- Step 1: Get playbooks (skip if already selected from current buffer)
-  if selected_playbook then
-    proceed_with_inventory(selected_playbook, selected_inventory)
-  else
-    local playbooks = get_files(config.playbooks_dir, "yml")
-    if vim.tbl_isempty(playbooks) then
-      playbooks = get_files(config.playbooks_dir, "yaml")
-    end
-    
-    if vim.tbl_isempty(playbooks) then
-      vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
-      return
-    end
-    
-    create_picker(playbooks, "Select Playbook", function(playbook)
-      proceed_with_inventory(playbook, selected_inventory)
-    end)
-  end
-end
-
--- Function to handle inventory selection and continue workflow
-local function proceed_with_inventory(playbook, preselected_inventory)
-  local playbook_path = config.playbooks_dir .. "/" .. playbook
-  
-  -- Step 2: Get inventories (skip if already selected from current buffer)
-  if preselected_inventory then
-    proceed_with_tags(playbook, playbook_path, preselected_inventory)
-  else
-    local inventories = get_files(config.environments_dir)
-    if vim.tbl_isempty(inventories) then
-      vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
-      return
-    end
-    
-    create_picker(inventories, "Select Inventory", function(inventory)
-      proceed_with_tags(playbook, playbook_path, inventory)
-    end)
-  end
-end
-
 -- Function to handle tag selection and continue workflow  
 local function proceed_with_tags(playbook, playbook_path, inventory)
   local inventory_path = config.environments_dir .. "/" .. inventory
@@ -328,6 +268,66 @@ local function proceed_with_tags(playbook, playbook_path, inventory)
     end)
   else
     continue_with_limits(nil)
+  end
+end
+
+-- Function to handle inventory selection and continue workflow
+local function proceed_with_inventory(playbook, preselected_inventory)
+  local playbook_path = config.playbooks_dir .. "/" .. playbook
+  
+  -- Step 2: Get inventories (skip if already selected from current buffer)
+  if preselected_inventory then
+    proceed_with_tags(playbook, playbook_path, preselected_inventory)
+  else
+    local inventories = get_files(config.environments_dir)
+    if vim.tbl_isempty(inventories) then
+      vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
+      return
+    end
+    
+    create_picker(inventories, "Select Inventory", function(inventory)
+      proceed_with_tags(playbook, playbook_path, inventory)
+    end)
+  end
+end
+
+-- Main function to run the ansible workflow
+local function run_ansible(use_current_buffer)
+  local current_file = nil
+  local selected_playbook = nil
+  local selected_inventory = nil
+  
+  -- Check current buffer if requested
+  if use_current_buffer then
+    current_file = vim.api.nvim_buf_get_name(0)
+    if current_file and current_file ~= "" then
+      if is_file_in_dir(current_file, config.playbooks_dir) then
+        selected_playbook = get_filename(current_file)
+        vim.notify("Using current playbook: " .. selected_playbook, vim.log.levels.INFO)
+      elseif is_file_in_dir(current_file, config.environments_dir) then
+        selected_inventory = get_filename(current_file)
+        vim.notify("Using current inventory: " .. selected_inventory, vim.log.levels.INFO)
+      end
+    end
+  end
+  
+  -- Step 1: Get playbooks (skip if already selected from current buffer)
+  if selected_playbook then
+    proceed_with_inventory(selected_playbook, selected_inventory)
+  else
+    local playbooks = get_files(config.playbooks_dir, "yml")
+    if vim.tbl_isempty(playbooks) then
+      playbooks = get_files(config.playbooks_dir, "yaml")
+    end
+    
+    if vim.tbl_isempty(playbooks) then
+      vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
+      return
+    end
+    
+    create_picker(playbooks, "Select Playbook", function(playbook)
+      proceed_with_inventory(playbook, selected_inventory)
+    end)
   end
 end
 
