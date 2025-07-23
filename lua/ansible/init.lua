@@ -201,8 +201,6 @@ end
 
 -- Main function to run the ansible workflow
 local function run_ansible(use_current_buffer)
--- Main function to run the ansible workflow
-local function run_ansible(use_current_buffer)
   local current_file = nil
   local selected_playbook = nil
   local selected_inventory = nil
