@@ -212,8 +212,10 @@ local function run_ansible_command(command)
       vim.cmd("FloatermShow ansible")
       vim.cmd("FloatermSend --name=ansible " .. command)
     else
-      -- Create new terminal with persistent name
-      vim.cmd("FloatermNew --name=ansible --title=ansible " .. command)
+      -- Create new persistent terminal without running command immediately
+      vim.cmd("FloatermNew --name=ansible --title=ansible")
+      -- Send the command to the new terminal
+      vim.cmd("FloatermSend --name=ansible " .. command)
     end
   else
     -- Create new terminal each time (original behavior)
