@@ -6,6 +6,7 @@ local config = {
   environments_dir = "environments",
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
+  reuse_terminal = false, -- Whether to reuse the same floaterm window
   float_opts = {
     relative = "editor",
     width = 80,
@@ -202,7 +203,22 @@ local function run_ansible_command(command)
   -- Store the command for potential re-run
   last_command = command
   
-  vim.cmd("FloatermNew --title=ansible " .. command)
+  if config.reuse_terminal then
+    -- Check if ansible terminal already exists
+    local existing_terminals = vim.fn["floaterm#terminal#get_bufnr"]("ansible")
+    
+    if existing_terminals ~= -1 then
+      -- Terminal exists, show it and send the command
+      vim.cmd("FloatermShow ansible")
+      vim.cmd("FloatermSend --name=ansible " .. command)
+    else
+      -- Create new terminal with persistent name
+      vim.cmd("FloatermNew --name=ansible --title=ansible " .. command)
+    end
+  else
+    -- Create new terminal each time (original behavior)
+    vim.cmd("FloatermNew --title=ansible " .. command)
+  end
 end
 
 -- Function to run the last executed command
@@ -213,7 +229,7 @@ local function run_ansible_last()
   end
   
   vim.notify("Re-running last command: " .. last_command, vim.log.levels.INFO)
-  vim.cmd("FloatermNew --title=ansible " .. last_command)
+  run_ansible_command(last_command)
 end
 
 -- Function to handle tag selection and continue workflow  

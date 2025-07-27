@@ -19,6 +19,7 @@ A Neovim plugin for running Ansible playbooks directly from your editor with fuz
 - 🔄 Falls back to full workflow if current file isn't recognized
 - 🔄 Re-run last command (`:AnsibleRunLast` / `<leader>ar`)
 - 💾 Automatic command history tracking
+- 🔄 Configurable terminal reuse for persistent floaterm windows
 - ⌨️ Configurable keybindings (default: `<leader>ap`, `<leader>ac`, and `<leader>ar`)
 
 ## Dependencies
@@ -96,6 +97,7 @@ require("ansible").setup({
   environments_dir = "environments",   -- Default: "environments"
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
+  reuse_terminal = true,              -- Default: false (reuse floaterm window)
   float_opts = {                      -- Telescope floating window options
     relative = "editor",
     width = 80,
