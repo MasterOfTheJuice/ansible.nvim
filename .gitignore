@@ -1,0 +1,39 @@
+# Claude Code specific files
+.claude/
+CLAUDE.md
+
+# Lua compiled files
+*.luac
+
+# Lua bytecode
+*.lua~
+
+# luarocks build files
+*.rockspec
+luarocks-*
+
+# Lua temporary files
+.luacache/
+lua_modules/
+
+# Development and testing
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Neovim specific
+*.nvim
+
+# Logs
+*.log
