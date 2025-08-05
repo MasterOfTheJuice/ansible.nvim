@@ -7,6 +7,7 @@ local config = {
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
   reuse_terminal = false, -- Whether to reuse the same floaterm window
+  recursive_scan = true, -- Whether to scan directories recursively
   float_opts = {
     relative = "editor",
     width = 80,
@@ -34,17 +35,26 @@ local function get_files(dir, extension)
     return files
   end
   
-  local handle = vim.loop.fs_scandir(dir)
-  if handle then
-    while true do
-      local name, type = vim.loop.fs_scandir_next(handle)
-      if not name then break end
-      
-      if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
-        table.insert(files, name)
+  local function scan_directory(path, relative_path)
+    local handle = vim.loop.fs_scandir(path)
+    if handle then
+      while true do
+        local name, type = vim.loop.fs_scandir_next(handle)
+        if not name then break end
+        
+        local full_path = path .. "/" .. name
+        local relative_file_path = relative_path and (relative_path .. "/" .. name) or name
+        
+        if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
+          table.insert(files, relative_file_path)
+        elseif type == "directory" and config.recursive_scan then
+          scan_directory(full_path, relative_file_path)
+        end
       end
     end
   end
+  
+  scan_directory(dir, nil)
   return files
 end
 

@@ -20,6 +20,7 @@ A Neovim plugin for running Ansible playbooks directly from your editor with fuz
 - 🔄 Re-run last command (`:AnsibleRunLast` / `<leader>ar`)
 - 💾 Automatic command history tracking
 - 🔄 Configurable terminal reuse for persistent floaterm windows
+- 📁 Recursive directory scanning for nested playbooks and environments
 - ⌨️ Configurable keybindings (default: `<leader>ap`, `<leader>ac`, and `<leader>ar`)
 
 ## Dependencies
@@ -34,7 +35,7 @@ Required plugins:
 
 ```lua
 {
-  "your-username/ansible.nvim",
+  "MasterOfTheJuice/ansible.nvim",
   dependencies = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
@@ -53,7 +54,7 @@ Required plugins:
 
 ```lua
 use {
-  "your-username/ansible.nvim",
+  "MasterOfTheJuice/ansible.nvim",
   requires = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
@@ -98,6 +99,7 @@ require("ansible").setup({
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
   reuse_terminal = true,              -- Default: false (reuse floaterm window)
+  recursive_scan = true,              -- Default: true (scan subdirectories)
   float_opts = {                      -- Telescope floating window options
     relative = "editor",
     width = 80,
@@ -119,13 +121,20 @@ your-project/
 ├── playbooks/
 │   ├── deploy.yml
 │   ├── maintenance.yml
-│   └── setup.yml
+│   ├── setup.yml
+│   └── webservers/
+│       └── nginx.yml
 ├── environments/
-│   ├── production
-│   ├── staging
+│   ├── production/
+│   │   ├── inventory
+│   │   └── group_vars/
+│   ├── staging/
+│   │   └── inventory
 │   └── development
 └── ...
 ```
+
+With `recursive_scan` enabled (default), the plugin will find files in subdirectories and display them with their relative paths (e.g., `webservers/nginx.yml`, `production/inventory`).
 
 ## Commands
 
