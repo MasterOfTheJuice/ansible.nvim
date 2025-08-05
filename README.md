@@ -34,7 +34,7 @@ Required plugins:
 
 ```lua
 {
-  "your-username/ansible.nvim",
+  "MasterOfTheJuice/ansible.nvim",
   dependencies = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
@@ -53,7 +53,7 @@ Required plugins:
 
 ```lua
 use {
-  "your-username/ansible.nvim",
+  "MasterOfTheJuice/ansible.nvim",
   requires = {
     "nvim-telescope/telescope.nvim",
     "voldikss/vim-floaterm"
