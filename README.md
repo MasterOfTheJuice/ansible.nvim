@@ -91,6 +91,8 @@ use {
 
 ## Configuration
 
+### Global Configuration
+
 ```lua
 require("ansible").setup({
   playbooks_dir = "playbooks",        -- Default: "playbooks"
@@ -110,6 +112,23 @@ require("ansible").setup({
   }
 })
 ```
+
+### Project-specific Configuration
+
+You can override configuration on a per-project basis by creating a `.ansible-nvim.lua` file in your project root:
+
+```lua
+-- .ansible-nvim.lua
+return {
+  cmd = "ap",                          -- Use project-specific alias
+  default_options = "--vault-password-file .vault-pass --diff",
+  verbosity = 2,                       -- More verbose for this project
+  playbooks_dir = "ansible/playbooks", -- Different directory structure
+  environments_dir = "ansible/inventories"
+}
+```
+
+The plugin will automatically detect and load this configuration when you change directories. Project configuration takes precedence over global configuration.
 
 ## Directory Structure
 

@@ -22,6 +22,36 @@ local config = {
 -- Store the last executed command
 local last_command = nil
 
+-- Store original user config to avoid re-applying project config
+local user_config = nil
+
+-- Load project-specific configuration
+local function load_project_config()
+  local cwd = vim.fn.getcwd()
+  local config_file = cwd .. "/.ansible-nvim.lua"
+  
+  if vim.fn.filereadable(config_file) == 1 then
+    local ok, project_config = pcall(dofile, config_file)
+    if ok and type(project_config) == "table" then
+      return project_config
+    else
+      vim.notify("Error loading project config: " .. config_file, vim.log.levels.WARN)
+    end
+  end
+  
+  return {}
+end
+
+-- Apply configuration with project overrides
+local function apply_config()
+  if not user_config then
+    return
+  end
+  
+  local project_config = load_project_config()
+  config = vim.tbl_deep_extend("force", config, user_config, project_config)
+end
+
 -- Helper function to check if directory exists
 local function dir_exists(path)
   local stat = vim.loop.fs_stat(path)
@@ -369,7 +399,11 @@ end
 
 -- Setup function
 function M.setup(opts)
-  config = vim.tbl_deep_extend("force", config, opts or {})
+  user_config = opts or {}
+  config = vim.tbl_deep_extend("force", config, user_config)
+  
+  -- Apply any project-specific config
+  apply_config()
   
   -- Create user commands
   vim.api.nvim_create_user_command("AnsibleRun", function() run_ansible(false) end, {})
@@ -390,6 +424,15 @@ function M.setup(opts)
   vim.keymap.set("n", "<leader>ar", run_ansible_last, { 
     desc = "Re-run Last Ansible Command",
     silent = true 
+  })
+  
+  -- Set up autocmd to reload config when changing directories
+  vim.api.nvim_create_autocmd("DirChanged", {
+    group = vim.api.nvim_create_augroup("AnsibleProjectConfig", { clear = true }),
+    callback = function()
+      apply_config()
+    end,
+    desc = "Reload ansible.nvim project configuration"
   })
 end
 
