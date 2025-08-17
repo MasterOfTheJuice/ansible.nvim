@@ -8,6 +8,8 @@ local config = {
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
   reuse_terminal = false, -- Whether to reuse the same floaterm window
+  recursive_search = true, -- Search subdirectories in playbooks_dir and environments_dir
+  exclude_dirs = { }, -- Directories to exclude from search
   float_opts = {
     relative = "editor",
     width = 80,
@@ -58,24 +60,43 @@ local function dir_exists(path)
   return stat and stat.type == "directory"
 end
 
--- Helper function to get files from directory
+-- Helper function to check if directory should be excluded
+local function is_excluded_dir(dir_name)
+  for _, excluded in ipairs(config.exclude_dirs) do
+    if dir_name == excluded then
+      return true
+    end
+  end
+  return false
+end
+
+-- Helper function to get files from directory (with optional recursive search)
 local function get_files(dir, extension)
   local files = {}
   if not dir_exists(dir) then
     return files
   end
   
-  local handle = vim.loop.fs_scandir(dir)
-  if handle then
-    while true do
-      local name, type = vim.loop.fs_scandir_next(handle)
-      if not name then break end
-      
-      if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
-        table.insert(files, name)
+  local function scan_dir(path, prefix)
+    local handle = vim.loop.fs_scandir(path)
+    if handle then
+      while true do
+        local name, type = vim.loop.fs_scandir_next(handle)
+        if not name then break end
+        
+        local full_path = path .. "/" .. name
+        local relative_path = prefix and (prefix .. "/" .. name) or name
+        
+        if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
+          table.insert(files, relative_path)
+        elseif type == "directory" and config.recursive_search and not is_excluded_dir(name) then
+          scan_dir(full_path, relative_path)
+        end
       end
     end
   end
+  
+  scan_dir(dir, nil)
   return files
 end
 
