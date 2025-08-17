@@ -101,6 +101,8 @@ require("ansible").setup({
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
   reuse_terminal = true,              -- Default: false (reuse floaterm window)
+  recursive_playbooks = true,         -- Default: false (search subdirectories in playbooks)
+  recursive_environments = true,      -- Default: false (search subdirectories in environments)
   float_opts = {                      -- Telescope floating window options
     relative = "editor",
     width = 80,
@@ -124,7 +126,9 @@ return {
   default_options = "--vault-password-file .vault-pass --diff",
   verbosity = 2,                       -- More verbose for this project
   playbooks_dir = "ansible/playbooks", -- Different directory structure
-  environments_dir = "ansible/inventories"
+  environments_dir = "ansible/inventories",
+  recursive_playbooks = true,          -- Enable recursive search for playbooks
+  recursive_environments = false       -- Keep environments flat
 }
 ```
 
@@ -139,13 +143,21 @@ your-project/
 ├── playbooks/
 │   ├── deploy.yml
 │   ├── maintenance.yml
-│   └── setup.yml
+│   ├── setup.yml
+│   └── services/          # Subdirectories (with recursive_playbooks: true)
+│       ├── web.yml
+│       └── database.yml
 ├── environments/
 │   ├── production
 │   ├── staging
-│   └── development
+│   ├── development
+│   └── cloud/             # Subdirectories (with recursive_environments: true)
+│       ├── aws-prod
+│       └── gcp-staging
 └── ...
 ```
+
+Recursive search can be enabled separately for playbooks and environments directories using the `recursive_playbooks` and `recursive_environments` configuration options.
 
 ## Commands
 
