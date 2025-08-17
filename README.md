@@ -95,6 +95,7 @@ use {
 require("ansible").setup({
   playbooks_dir = "playbooks",        -- Default: "playbooks"
   environments_dir = "environments",   -- Default: "environments"
+  cmd = "ansible-playbook",           -- Default: "ansible-playbook" (can use alias)
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
   reuse_terminal = true,              -- Default: false (reuse floaterm window)

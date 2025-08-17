@@ -4,6 +4,7 @@ local M = {}
 local config = {
   playbooks_dir = "playbooks",
   environments_dir = "environments",
+  cmd = "ansible-playbook", -- The ansible command to use (can be an alias)
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
   reuse_terminal = false, -- Whether to reuse the same floaterm window
@@ -249,7 +250,7 @@ local function proceed_with_tags(playbook, playbook_path, inventory)
         -- Step 6: Get dry-run option
         get_input("Dry run? (y/N): ", function(dry_run)
           -- Build ansible command
-          local cmd = "ansible-playbook"
+          local cmd = config.cmd
           cmd = cmd .. " -i " .. inventory_path
           
           -- Add verbosity
