@@ -8,8 +8,6 @@ local config = {
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
   reuse_terminal = false, -- Whether to reuse the same floaterm window
-  recursive_playbooks = false, -- Search subdirectories in playbooks_dir
-  recursive_environments = false, -- Search subdirectories in environments_dir
   float_opts = {
     relative = "editor",
     width = 80,
@@ -60,33 +58,24 @@ local function dir_exists(path)
   return stat and stat.type == "directory"
 end
 
--- Helper function to get files from directory (with optional recursive search)
-local function get_files(dir, extension, recursive)
+-- Helper function to get files from directory
+local function get_files(dir, extension)
   local files = {}
   if not dir_exists(dir) then
     return files
   end
   
-  local function scan_dir(path, prefix)
-    local handle = vim.loop.fs_scandir(path)
-    if handle then
-      while true do
-        local name, type = vim.loop.fs_scandir_next(handle)
-        if not name then break end
-        
-        local full_path = path .. "/" .. name
-        local relative_path = prefix and (prefix .. "/" .. name) or name
-        
-        if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
-          table.insert(files, relative_path)
-        elseif type == "directory" and recursive then
-          scan_dir(full_path, relative_path)
-        end
+  local handle = vim.loop.fs_scandir(dir)
+  if handle then
+    while true do
+      local name, type = vim.loop.fs_scandir_next(handle)
+      if not name then break end
+      
+      if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
+        table.insert(files, name)
       end
     end
   end
-  
-  scan_dir(dir, nil)
   return files
 end
 
@@ -356,7 +345,7 @@ local function proceed_with_inventory(playbook, preselected_inventory)
   if preselected_inventory then
     proceed_with_tags(playbook, playbook_path, preselected_inventory)
   else
-    local inventories = get_files(config.environments_dir, nil, config.recursive_environments)
+    local inventories = get_files(config.environments_dir)
     if vim.tbl_isempty(inventories) then
       vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
       return
@@ -392,9 +381,9 @@ local function run_ansible(use_current_buffer)
   if selected_playbook then
     proceed_with_inventory(selected_playbook, selected_inventory)
   else
-    local playbooks = get_files(config.playbooks_dir, "yml", config.recursive_playbooks)
+    local playbooks = get_files(config.playbooks_dir, "yml")
     if vim.tbl_isempty(playbooks) then
-      playbooks = get_files(config.playbooks_dir, "yaml", config.recursive_playbooks)
+      playbooks = get_files(config.playbooks_dir, "yaml")
     end
     
     if vim.tbl_isempty(playbooks) then
