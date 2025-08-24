@@ -2,8 +2,8 @@ local M = {}
 
 -- Configuration
 local config = {
-  playbooks_dir = "playbooks",
-  environments_dir = "environments",
+  playbooks_dir = {"playbooks"},
+  environments_dir = {"environments"},
   cmd = "ansible-playbook", -- The ansible command to use (can be an alias)
   default_options = "", -- Additional options like --diff
   verbosity = 0, -- 0 = no verbosity, 1-5 = -v to -vvvvv
@@ -50,6 +50,14 @@ local function apply_config()
   
   local project_config = load_project_config()
   config = vim.tbl_deep_extend("force", config, user_config, project_config)
+  
+  -- Normalize directory configs to arrays for backwards compatibility
+  if type(config.playbooks_dir) == "string" then
+    config.playbooks_dir = {config.playbooks_dir}
+  end
+  if type(config.environments_dir) == "string" then
+    config.environments_dir = {config.environments_dir}
+  end
 end
 
 -- Helper function to check if directory exists
@@ -58,21 +66,24 @@ local function dir_exists(path)
   return stat and stat.type == "directory"
 end
 
--- Helper function to get files from directory
-local function get_files(dir, extension)
+-- Helper function to get files from directory or list of directories
+local function get_files(dirs, extension)
   local files = {}
-  if not dir_exists(dir) then
-    return files
-  end
+  local dirs_list = type(dirs) == "table" and dirs or {dirs}
   
-  local handle = vim.loop.fs_scandir(dir)
-  if handle then
-    while true do
-      local name, type = vim.loop.fs_scandir_next(handle)
-      if not name then break end
-      
-      if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
-        table.insert(files, name)
+  for _, dir in ipairs(dirs_list) do
+    if dir_exists(dir) then
+      local handle = vim.loop.fs_scandir(dir)
+      if handle then
+        while true do
+          local name, type = vim.loop.fs_scandir_next(handle)
+          if not name then break end
+          
+          if type == "file" and (not extension or name:match("%." .. extension .. "$")) then
+            -- Store both filename and directory for later path resolution
+            table.insert(files, {name = name, dir = dir})
+          end
+        end
       end
     end
   end
@@ -115,10 +126,17 @@ local function get_relative_path(filepath)
   return filepath
 end
 
--- Helper function to check if file is in specific directory
-local function is_file_in_dir(filepath, dir)
+-- Helper function to check if file is in specific directory or directories
+local function is_file_in_dir(filepath, dirs)
   local relative_path = get_relative_path(filepath)
-  return relative_path:match("^" .. dir .. "/")
+  local dirs_list = type(dirs) == "table" and dirs or {dirs}
+  
+  for _, dir in ipairs(dirs_list) do
+    if relative_path:match("^" .. dir .. "/") then
+      return true, dir
+    end
+  end
+  return false
 end
 
 -- Helper function to extract filename from path
@@ -267,7 +285,7 @@ end
 
 -- Function to handle tag selection and continue workflow  
 local function proceed_with_tags(playbook, playbook_path, inventory)
-  local inventory_path = config.environments_dir .. "/" .. inventory
+  local inventory_path = inventory.dir .. "/" .. inventory.name
   
   -- Step 3: Check for tags
   local tags = get_playbook_tags(playbook_path)
@@ -339,7 +357,7 @@ end
 
 -- Function to handle inventory selection and continue workflow
 local function proceed_with_inventory(playbook, preselected_inventory)
-  local playbook_path = config.playbooks_dir .. "/" .. playbook
+  local playbook_path = playbook.dir .. "/" .. playbook.name
   
   -- Step 2: Get inventories (skip if already selected from current buffer)
   if preselected_inventory then
@@ -347,12 +365,24 @@ local function proceed_with_inventory(playbook, preselected_inventory)
   else
     local inventories = get_files(config.environments_dir)
     if vim.tbl_isempty(inventories) then
-      vim.notify("No inventories found in " .. config.environments_dir, vim.log.levels.ERROR)
+      vim.notify("No inventories found in directories: " .. table.concat(config.environments_dir, ", "), vim.log.levels.ERROR)
       return
     end
     
-    create_picker(inventories, "Select Inventory", function(inventory)
-      proceed_with_tags(playbook, playbook_path, inventory)
+    -- Create display names for the picker (show directory when needed)
+    local inventory_items = {}
+    for _, inv in ipairs(inventories) do
+      table.insert(inventory_items, inv.name)
+    end
+    
+    create_picker(inventory_items, "Select Inventory", function(selected_name)
+      -- Find the corresponding inventory object
+      for _, inv in ipairs(inventories) do
+        if inv.name == selected_name then
+          proceed_with_tags(playbook, playbook_path, inv)
+          break
+        end
+      end
     end)
   end
 end
@@ -367,12 +397,17 @@ local function run_ansible(use_current_buffer)
   if use_current_buffer then
     current_file = vim.api.nvim_buf_get_name(0)
     if current_file and current_file ~= "" then
-      if is_file_in_dir(current_file, config.playbooks_dir) then
-        selected_playbook = get_filename(current_file)
-        vim.notify("Using current playbook: " .. selected_playbook, vim.log.levels.INFO)
-      elseif is_file_in_dir(current_file, config.environments_dir) then
-        selected_inventory = get_filename(current_file)
-        vim.notify("Using current inventory: " .. selected_inventory, vim.log.levels.INFO)
+      local in_playbooks_dir, playbook_dir = is_file_in_dir(current_file, config.playbooks_dir)
+      local in_environments_dir, inventory_dir = is_file_in_dir(current_file, config.environments_dir)
+      
+      if in_playbooks_dir then
+        local filename = get_filename(current_file)
+        selected_playbook = {name = filename, dir = playbook_dir}
+        vim.notify("Using current playbook: " .. filename, vim.log.levels.INFO)
+      elseif in_environments_dir then
+        local filename = get_filename(current_file)
+        selected_inventory = {name = filename, dir = inventory_dir}
+        vim.notify("Using current inventory: " .. filename, vim.log.levels.INFO)
       end
     end
   end
@@ -383,16 +418,31 @@ local function run_ansible(use_current_buffer)
   else
     local playbooks = get_files(config.playbooks_dir, "yml")
     if vim.tbl_isempty(playbooks) then
-      playbooks = get_files(config.playbooks_dir, "yaml")
+      local yaml_playbooks = get_files(config.playbooks_dir, "yaml")
+      for _, pb in ipairs(yaml_playbooks) do
+        table.insert(playbooks, pb)
+      end
     end
     
     if vim.tbl_isempty(playbooks) then
-      vim.notify("No playbooks found in " .. config.playbooks_dir, vim.log.levels.ERROR)
+      vim.notify("No playbooks found in directories: " .. table.concat(config.playbooks_dir, ", "), vim.log.levels.ERROR)
       return
     end
     
-    create_picker(playbooks, "Select Playbook", function(playbook)
-      proceed_with_inventory(playbook, selected_inventory)
+    -- Create display names for the picker
+    local playbook_items = {}
+    for _, pb in ipairs(playbooks) do
+      table.insert(playbook_items, pb.name)
+    end
+    
+    create_picker(playbook_items, "Select Playbook", function(selected_name)
+      -- Find the corresponding playbook object
+      for _, pb in ipairs(playbooks) do
+        if pb.name == selected_name then
+          proceed_with_inventory(pb, selected_inventory)
+          break
+        end
+      end
     end)
   end
 end
@@ -401,6 +451,14 @@ end
 function M.setup(opts)
   user_config = opts or {}
   config = vim.tbl_deep_extend("force", config, user_config)
+  
+  -- Normalize directory configs to arrays for backwards compatibility
+  if type(config.playbooks_dir) == "string" then
+    config.playbooks_dir = {config.playbooks_dir}
+  end
+  if type(config.environments_dir) == "string" then
+    config.environments_dir = {config.environments_dir}
+  end
   
   -- Apply any project-specific config
   apply_config()

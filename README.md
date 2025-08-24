@@ -4,8 +4,8 @@ A Neovim plugin for running Ansible playbooks directly from your editor with fuz
 
 ## Features
 
-- 🔍 Fuzzy searchable playbook selection from `playbooks/` directory
-- 🌐 Fuzzy searchable inventory selection from `environments/` directory  
+- 🔍 Fuzzy searchable playbook selection from `playbooks/` directory (supports multiple directories)
+- 🌐 Fuzzy searchable inventory selection from `environments/` directory (supports multiple directories)  
 - 🏷️ Tag selection for playbooks that contain tags
 - 🎯 Host/group limiting with `--limit` parameter
 - 🖥️ Execution in floaterm for better terminal management
@@ -44,6 +44,9 @@ Required plugins:
       -- Optional configuration
       playbooks_dir = "playbooks",      -- Directory containing playbooks
       environments_dir = "environments", -- Directory containing inventories
+      -- Or multiple directories:
+      -- playbooks_dir = {"playbooks", "ansible/playbooks", "custom-playbooks"},
+      -- environments_dir = {"environments", "inventory", "ansible/inventory"},
     })
   end
 }
@@ -95,8 +98,8 @@ use {
 
 ```lua
 require("ansible").setup({
-  playbooks_dir = "playbooks",        -- Default: "playbooks"
-  environments_dir = "environments",   -- Default: "environments"
+  playbooks_dir = "playbooks",        -- Default: "playbooks" (string or array)
+  environments_dir = "environments",   -- Default: "environments" (string or array)
   cmd = "ansible-playbook",           -- Default: "ansible-playbook" (can use alias)
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
@@ -124,15 +127,43 @@ return {
   default_options = "--vault-password-file .vault-pass --diff",
   verbosity = 2,                       -- More verbose for this project
   playbooks_dir = "ansible/playbooks", -- Different directory structure
-  environments_dir = "ansible/inventories"
+  environments_dir = "ansible/inventories",
+  -- Or use multiple directories:
+  -- playbooks_dir = {"playbooks", "ansible/playbooks", "legacy-playbooks"},
+  -- environments_dir = {"environments", "inventory", "ansible/inventory"},
 }
 ```
 
 The plugin will automatically detect and load this configuration when you change directories. Project configuration takes precedence over global configuration.
 
+### Multiple Directories Support
+
+Both `playbooks_dir` and `environments_dir` can be configured as arrays to scan multiple directories:
+
+```lua
+require("ansible").setup({
+  playbooks_dir = {
+    "playbooks",
+    "ansible/playbooks", 
+    "custom-playbooks",
+    "legacy/ansible"
+  },
+  environments_dir = {
+    "environments",
+    "inventory", 
+    "ansible/inventory",
+    "infra/hosts"
+  },
+})
+```
+
+The plugin will scan all specified directories and present files from all locations in the fuzzy finder. When executing playbooks, the full path is used automatically so there are no conflicts between files with the same name in different directories.
+
+**Backwards Compatibility**: Single directory strings are still fully supported - they are automatically converted to single-item arrays internally.
+
 ## Directory Structure
 
-Your project should have the following structure:
+Your project should have the following structure (single directory example):
 
 ```
 your-project/
@@ -144,6 +175,30 @@ your-project/
 │   ├── production
 │   ├── staging
 │   └── development
+└── ...
+```
+
+Or with multiple directories:
+
+```
+your-project/
+├── playbooks/
+│   ├── deploy.yml
+│   └── maintenance.yml
+├── ansible/
+│   ├── playbooks/
+│   │   ├── setup.yml
+│   │   └── backup.yml
+│   └── inventory/
+│       ├── prod
+│       └── dev
+├── environments/
+│   ├── staging
+│   └── development
+├── legacy/
+│   └── ansible/
+│       ├── old-deploy.yml
+│       └── migration.yml
 └── ...
 ```
 
