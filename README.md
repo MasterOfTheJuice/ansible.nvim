@@ -101,8 +101,6 @@ require("ansible").setup({
   default_options = "--diff",          -- Default: "" (additional options)
   verbosity = 1,                      -- Default: 0 (0=none, 1=-v, 2=-vv, etc.)
   reuse_terminal = true,              -- Default: false (reuse floaterm window)
-  recursive_search = true,            -- Default: true (search subdirectories)
-  exclude_dirs = { ".git", "node_modules", ".terraform" }, -- Default excludes
   float_opts = {                      -- Telescope floating window options
     relative = "editor",
     width = 80,
@@ -126,9 +124,7 @@ return {
   default_options = "--vault-password-file .vault-pass --diff",
   verbosity = 2,                       -- More verbose for this project
   playbooks_dir = "ansible/playbooks", -- Different directory structure
-  environments_dir = "ansible/inventories",
-  recursive_search = false,            -- Disable recursive search for this project
-  exclude_dirs = { ".git", "venv", "build" } -- Project-specific exclusions
+  environments_dir = "ansible/inventories"
 }
 ```
 
@@ -143,22 +139,13 @@ your-project/
 ├── playbooks/
 │   ├── deploy.yml
 │   ├── maintenance.yml
-│   ├── setup.yml
-│   └── services/          # Subdirectories supported (with recursive_search: true)
-│       ├── web.yml
-│       └── database.yml
+│   └── setup.yml
 ├── environments/
 │   ├── production
 │   ├── staging
-│   ├── development
-│   └── cloud/             # Subdirectories supported (with recursive_search: true)
-│       ├── aws-prod
-│       └── gcp-staging
-├── .git/                  # Excluded by default
-└── node_modules/          # Excluded by default
+│   └── development
+└── ...
 ```
-
-When `recursive_search` is enabled (default), the plugin will find playbooks and inventories in subdirectories while respecting the `exclude_dirs` configuration.
 
 ## Commands
 
